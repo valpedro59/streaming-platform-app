@@ -1,59 +1,35 @@
 "use client";
+
 import { usePlayerStore } from "@/store/usePlayerStore";
-import { useEffect, useRef } from "react";
-import TrackControls from "./trackControls";
+import TrackControls from "./trackControls"; // On garde juste les contrôles
 
 const AudioPlayer = () => {
-  const { currentTrack, isPlaying, togglePlay, playNext } = usePlayerStore();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { currentTrack } = usePlayerStore();
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (isPlaying) {
-      // On doit await play() car il peut lever une erreur si l'URL est invalide
-      audio.play().catch((err) => {
-        console.error("Erreur de lecture audio:", err);
-        console.log("URL tentée:", audio.src);
-      });
-    } else {
-      audio.pause();
-    }
-  }, [isPlaying, currentTrack]);
-
-  // ✅ Correction : passer à la prochaine chanson à la fin, pas togglePlay
-  const handleEnded = () => {
-    playNext();
-  };
-
+  // Si aucune musique n'est sélectionnée, on n'affiche rien
   if (!currentTrack) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/90 backdrop-blur-md border-t border-white/10 px-6 py-3 flex items-center justify-between">
-      <div className="flex items-center space-x-4">
+      {/* 1. Informations de la chanson (Gauche) */}
+      <div className="flex items-center space-x-4 w-1/4 min-w-[150px]">
         <img
           src={currentTrack.imageUrl}
           alt={currentTrack.titre}
-          className="w-12 h-12 rounded object-cover"
+          className="w-12 h-12 rounded object-cover bg-zinc-800"
         />
-        <div>
+        <div className="overflow-hidden">
           <h4 className="text-sm font-bold text-white truncate">
             {currentTrack.titre}
           </h4>
-          <p className="text-xs text-gray-400">{currentTrack.genre}</p>
+          <p className="text-xs text-gray-400 truncate">
+            {currentTrack.artist}
+          </p>
         </div>
       </div>
 
-      <audio
-        ref={audioRef}
-        src={currentTrack.audioUrl || ""}
-        onEnded={handleEnded}
-        // ✅ Ajoute ces attributs pour améliorer la compatibilité
-        preload="metadata"
-        crossOrigin="anonymous"
-      />
-
+      {/* 2. Les Contrôles (Centre & Droite) */}
+      {/* C'EST ICI QUE LE SON EST GÉRÉ */}
       <TrackControls />
     </div>
   );

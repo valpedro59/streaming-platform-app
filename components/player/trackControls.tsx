@@ -48,31 +48,28 @@ export default function TrackControls() {
     audio.volume = volume;
     audioRef.current = audio;
 
-    // ✅ 2. Quand l'audio est prêt à jouer
+    // ✅ Handlers
     const handleCanPlay = () => {
       setIsLoaded(true);
+      // Si le store dit "playing" au chargement, on lance
       if (isPlaying) {
         audio.play().catch((e) => console.warn("Autoplay blocked", e));
       }
     };
 
-    // ✅ 3. Synchronisation Play/Pause avec le store
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
-    // ✅ 4. Mise à jour de la progression
     const handleTimeUpdate = () => {
       if (audio.duration && !isNaN(audio.duration)) {
         seekTo(audio.currentTime, audio.duration);
       }
     };
 
-    // ✅ 5. Fin de la chanson -> Suivant
     const handleEnded = () => {
       playNext();
     };
 
-    // ✅ 6. Gestion des erreurs
     const handleError = () => {
       console.error("Audio Error:", audio.error);
       setIsLoaded(false);
@@ -86,7 +83,7 @@ export default function TrackControls() {
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("error", handleError);
 
-    // Nettoyage au démontage ou changement de track
+    // Nettoyage
     return () => {
       audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("play", handlePlay);
@@ -97,9 +94,22 @@ export default function TrackControls() {
       audio.pause();
       audio.src = "";
     };
-  }, [currentTrack?.audioUrl]); // Se lance seulement quand l'URL change
+  }, [currentTrack?.audioUrl]);
 
-  // ✅ 7. Mise à jour du volume en temps réel
+  // ✅ 2. SYNCRO ISPLAYING : C'est la clé pour éviter le bug de pause
+  // Cet effet écoute les changements de isPlaying venant du STORE ou des boutons
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !isLoaded) return;
+
+    if (isPlaying) {
+      audio.play().catch((e) => console.warn("Play failed", e));
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying, isLoaded]);
+
+  // ✅ 3. Mise à jour du volume
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
@@ -109,30 +119,16 @@ export default function TrackControls() {
   // ✅ Handlers pour les boutons
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(console.error);
-    }
+    // On inverse l'état dans le store, l'effet ci-dessus gérera l'audio
+    setIsPlaying(!isPlaying);
   };
 
-  const handleSeek = (
-    value: number | readonly number[],
-    _eventDetails?: unknown,
-  ) => {
+  const handleSeek = (value: number | readonly number[]) => {
     const time = Array.isArray(value) ? value[0] : value;
     if (audioRef.current) {
       audioRef.current.currentTime = time;
     }
     seekTo(time, duration);
-  };
-
-  const handleVolumeChange = (
-    value: number | readonly number[],
-    _eventDetails?: unknown,
-  ) => {
-    const nextVolume = Array.isArray(value) ? value[0] : value;
-    setVolume(nextVolume / 100);
   };
 
   const formatTime = (time: number) => {
