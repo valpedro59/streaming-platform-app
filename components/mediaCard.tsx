@@ -16,7 +16,7 @@ export default function MediaCard({ track }: MediaCardProps) {
   return (
     <div
       className="group relative flex flex-col gap-2 rounded-lg bg-zinc-900/50 p-4 transition-all hover:bg-zinc-800 hover:shadow-lg hover:shadow-white/5 cursor-pointer"
-      onClick={() => playTrack(track)} // ✅ C'est ici qu'on joue
+      onClick={() => playTrack(track)}
     >
       {/* Image */}
       <div className="relative aspect-square overflow-hidden rounded-md">

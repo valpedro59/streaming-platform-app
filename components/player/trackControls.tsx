@@ -11,7 +11,8 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { audioManager } from "@/lib/audioManager";
 
 export default function TrackControls() {
   const {
@@ -27,34 +28,22 @@ export default function TrackControls() {
     setIsPlaying,
   } = usePlayerStore();
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // ✅ 1. Initialisation de l'audio quand la track change
+  // Récupère l'instance globale une seule fois
+  const audio = audioManager.getAudio();
+
+  //  Gestion du changement de piste (URL)
   useEffect(() => {
     if (!currentTrack?.audioUrl) return;
 
-    // Arrêter et nettoyer l'ancien audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current.load();
-    }
-
     setIsLoaded(false);
+    audioManager.setSrc(currentTrack.audioUrl);
+    audioManager.setVolume(volume);
 
-    // Créer le nouvel élément audio
-    const audio = new Audio(currentTrack.audioUrl);
-    audio.volume = volume;
-    audioRef.current = audio;
-
-    // ✅ Handlers
     const handleCanPlay = () => {
       setIsLoaded(true);
-      // Si le store dit "playing" au chargement, on lance
-      if (isPlaying) {
-        audio.play().catch((e) => console.warn("Autoplay blocked", e));
-      }
+      if (isPlaying) audio.play().catch(console.warn);
     };
 
     const handlePlay = () => setIsPlaying(true);
@@ -66,16 +55,14 @@ export default function TrackControls() {
       }
     };
 
-    const handleEnded = () => {
-      playNext();
-    };
+    const handleEnded = () => playNext();
 
     const handleError = () => {
       console.error("Audio Error:", audio.error);
       setIsLoaded(false);
     };
 
-    // Attacher les écouteurs
+    // Attacher les listeners sur l'instance globale
     audio.addEventListener("canplay", handleCanPlay);
     audio.addEventListener("play", handlePlay);
     audio.addEventListener("pause", handlePause);
@@ -83,7 +70,7 @@ export default function TrackControls() {
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("error", handleError);
 
-    // Nettoyage
+    // Nettoyage : on retire les listeners mais on garde l'objet audio vivant
     return () => {
       audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("play", handlePlay);
@@ -91,43 +78,38 @@ export default function TrackControls() {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("error", handleError);
-      audio.pause();
-      audio.src = "";
     };
   }, [currentTrack?.audioUrl]);
 
-  // ✅ 2. SYNCRO ISPLAYING : C'est la clé pour éviter le bug de pause
-  // Cet effet écoute les changements de isPlaying venant du STORE ou des boutons
+  // Synchronisation Play/Pause (Le chef d'orchestre)
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !isLoaded) return;
-
+    if (!isLoaded) return;
     if (isPlaying) {
-      audio.play().catch((e) => console.warn("Play failed", e));
+      audio.play().catch(console.warn);
     } else {
       audio.pause();
     }
   }, [isPlaying, isLoaded]);
 
-  // ✅ 3. Mise à jour du volume
+  //  Mise à jour du volume
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
+    audioManager.setVolume(volume);
   }, [volume]);
 
-  // ✅ Handlers pour les boutons
+  //  LES HANDLERS ICI (Ils parlent au store ou à l'audioManager)
   const handleTogglePlay = () => {
-    if (!audioRef.current) return;
-    // On inverse l'état dans le store, l'effet ci-dessus gérera l'audio
     setIsPlaying(!isPlaying);
   };
 
-  const handleSeek = (value: number | readonly number[]) => {
-    const time = Array.isArray(value) ? value[0] : value;
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-    }
+  const handleSeek = (
+    value: number | readonly number[],
+    _eventDetails?: unknown,
+  ) => {
+    const time = Array.isArray(value) ? value[0] : Number(value);
+
+    if (typeof time !== "number" || Number.isNaN(time)) return;
+
+    audioManager.seek(time);
     seekTo(time, duration);
   };
 
@@ -224,7 +206,7 @@ export default function TrackControls() {
           step={1}
           className="w-20 cursor-pointer"
           onValueChange={(v) =>
-            setVolume((typeof v === "number" ? v : v[0]) / 100)
+            setVolume((typeof v === "number" ? v : (v[0] ?? 0)) / 100)
           }
         />
       </div>
